@@ -1,9 +1,10 @@
 import libnm
-import ptr_math
+import sweet
 
 iterator gIter*[R](gpa: ptr GPtrArray): ptr R =
   for i in 0..gpa[].len.int-1:
-    yield cast[ptr ptr R](gpa[].pdata + i)[]
+    ptrMath:
+      yield cast[ptr ptr R](gpa[].pdata + i)[]
 
 proc `$`*(gbytes: ptr GBytes): string =
   var

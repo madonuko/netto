@@ -20,8 +20,28 @@
 import results
 import libnm
 import ./[wifi, errhdl]
+import owlkettle, owlkettle/he
 
 import std/[strutils, options, strformat]
+
+viewable App: discard
+
+method view(app: AppState): Widget = 
+  result = gui:
+    HeApplicationWindow:
+      title = "Meow!"
+
+      HeViewMono:
+        showRightTitleButtons = true
+
+        HeViewTitle(label = "HeViewTitle") {.title.}
+
+        Box(orient = OrientY, spacing = 4, margin = 16):
+          Label {.expand: false.}:
+            text = "label!"
+          HeButton {.expand: false, hAlign: AlignCenter.}:
+            icon = "emote-love-symbolic"
+            is_pill = true
 
 
 proc main =
@@ -33,5 +53,7 @@ proc main =
   wifidev.scan[]
   for ap in wifidev.access_points:
     echo ap.ssid.get("<unknown ssid>").alignLeft(32) & &" {ap.needPasswd}"
+
+  he.brew gui App()
 
 main()
