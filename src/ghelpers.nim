@@ -10,3 +10,9 @@ proc `$`*(gbytes: ptr GBytes): string =
     size: gsize
     p = g_bytes_get_data(gbytes, addr size)
   ($cast[cstring](p))[0..size.int-1]
+
+proc GVariant*(s: string): ptr GVariant =
+  g_variant_new_string s.cstring
+
+proc GVariant*(s: cstring): ptr GVariant =
+  g_variant_new_string s

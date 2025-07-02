@@ -18,11 +18,10 @@
 ]#
 
 import results
-import ptr_math
 import libnm
 import ./[wifi, errhdl]
 
-import std/[strutils, options]
+import std/[strutils, options, strformat]
 
 
 proc main =
@@ -33,6 +32,6 @@ proc main =
   echo $nm_device_wifi_get_hw_address(wifidev)
   wifidev.scan[]
   for ap in wifidev.access_points:
-    echo ap.ssid.get("<unknown ssid>")
+    echo ap.ssid.get("<unknown ssid>").alignLeft(32) & &" {ap.needPasswd}"
 
 main()

@@ -17,27 +17,26 @@ proc get_wifi_device*(client: ptr NMClient): Option[ptr NMDeviceWifi] =
 
 proc scan*(wifidev: ptr NMDeviceWifi): Result[void, ptr ptr GError] =
   type UserData = tuple[
-    dev: ptr NMDeviceWifi,
     loop: ptr GMainLoop,
     err: ptr ptr GError,
   ]
 
-  proc reqScanCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} = 
-    var u = cast[ptr UserData](user_data)
-    
-    let success = nm_device_wifi_request_scan_finish(u[].dev, res, u[].err)
-    trace "scan finished ", success = success
+  proc nattouReqScanCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} = 
+    var
+      u = cast[ptr UserData](user_data)
+      success = nm_device_wifi_request_scan_finish(cast[ptr NMDeviceWifi](source_object), res, u[].err)
+    trace "scan finished ", success
     g_main_loop_quit u[].loop
 
   var
     loop = g_main_loop_new(nil, false.gboolean)
-    u: UserData = (wifidev, loop, nil)
+    u: UserData = (loop, nil)
 
   trace "requesting scan"
   nm_device_wifi_request_scan_async(
     wifidev,
     nil, # GCancellable
-    reqScanCb, # GAsyncReadyCallback
+    nattouReqScanCb, # GAsyncReadyCallback
     addr u, # gpointer user_data
   )
   g_main_loop_run loop
@@ -59,3 +58,83 @@ proc ssid*(ap: ptr NMAccessPoint): Option[string] =
 
 proc needPasswd*(ap: ptr NMAccessPoint): bool =
   nm_access_point_get_flags(ap) != NM_802_11_AP_FLAGS_NONE
+
+proc addConnection(client: ptr NMClient, conn: ptr NMConnection): Result[ptr NMRemoteConnection, ptr ptr GError] =
+  type UserData = tuple[
+    loop: ptr GMainLoop,
+    err: ptr ptr GError,
+    conn: ptr NMRemoteConnection
+  ]
+
+  proc nattouAddConnCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} =
+    var u = cast[ptr UserData](user_data)
+    u[].conn = nm_client_add_connection_finish(cast[ptr NMClient](source_object), res, u[].err)
+    trace "added connection"
+    g_main_loop_quit u[].loop
+
+  var
+    loop = g_main_loop_new(nil, false.gboolean)
+    u: UserData = (loop, nil, nil)
+
+  trace "adding conn"
+  client.nm_client_add_connection_async(
+    conn,
+    true.gboolean, # gboolean save_to_disk
+    nil, # GCancellable *cancellable
+    nattouAddConnCb, # GAsyncReadyCallback callback
+    addr u, # gpointer user_data
+  )
+  g_main_loop_run loop
+  trace "loop finished", hasErr = not u.err.isNil
+  if not u.err.isNil:
+    return err u.err
+  ok(u.conn)
+
+# asked deepseek and somehow they're giving me methods that actually exist
+# TODO: check all paths somehow?
+proc connectAP*(client: ptr NMClient, ap: ptr NMAccessPoint, password = "", username = ""): Result[ptr NMRemoteConnection, ptr ptr GError] =
+  var
+    conn = nm_simple_connection_new()
+    wifi_setting = nm_setting_wireless_new()
+  
+  wifi_setting.nm_setting_option_set(NM_SETTING_WIRELESS_BSSID, GVariant(nm_access_point_get_bssid(ap)))
+  conn.nm_connection_add_setting wifi_setting
+
+  # configure security
+  let
+    flags = nm_access_point_get_flags ap
+    rsnFlags = nm_access_point_get_rsn_flags ap
+
+  if flags == NM_802_11_AP_FLAGS_PRIVACY:
+    let sec_setting = nm_setting_wireless_security_new()
+    
+    # WPA2-Personal (PSK)
+    if rsnFlags == NM_802_11_AP_SEC_KEY_MGMT_PSK:
+      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("wpa-psk"))
+      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_PSK, GVariant(password))
+    
+    # WEP
+    elif ap.nm_access_point_get_wpa_flags != NM_802_11_AP_SEC_NONE or rsnFlags == NM_802_11_AP_SEC_NONE:
+      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("none"))
+      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_WEP_KEY0, GVariant(password))
+      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_AUTH_ALG, GVariant("open"))
+    
+    # Enterprise (WPA-EAP)
+    elif rsnFlags == NM_802_11_AP_SEC_KEY_MGMT_802_1X:
+      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("wpa-eap"))
+      let eap_setting = nm_setting_802_1x_new()
+      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_EAP, GVariant("peap"))
+      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_IDENTITY, GVariant(username))
+      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_PASSWORD, GVariant(password))
+      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_PHASE2_AUTH, GVariant("mschapv2"))
+      conn.nm_connection_add_setting eap_setting
+    
+    conn.nm_connection_add_setting sec_setting
+
+  # configure IPv4
+  let ip4_setting = nm_setting_ip4_config_new()
+  ip4_setting.nm_setting_option_set(NM_SETTING_IP_CONFIG_METHOD, GVariant("auto"))
+  conn.nm_connection_add_setting ip4_setting
+
+  # activate
+  client.addConnection conn
