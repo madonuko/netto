@@ -17,9 +17,22 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 ]#
 
-import futhark
+import results
+import ptr_math
+import libnm
+import ./[wifi, errhdl]
 
-importc:
-  path "/usr/include/libnm/"
+import std/[strutils, options]
 
-echo "Hello, World!"
+
+proc main =
+  let cli = nm_client_new(nil, nil)
+  echo "netto"
+  echo "nm client " & $cli.nm_client_get_version()
+  let wifidev: ptr NMDeviceWifi = get get_wifi_device cli
+  echo $nm_device_wifi_get_hw_address(wifidev)
+  wifidev.scan[]
+  for ap in wifidev.access_points:
+    echo ap.ssid.get("<unknown ssid>")
+
+main()
