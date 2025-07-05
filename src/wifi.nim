@@ -17,35 +17,24 @@ proc get_wifi_devices*(client: ptr NMClient): seq[ptr NMDeviceWifi] = collect:
     if dev.nm_device_get_type_description == "wifi":
       cast[ptr NMDeviceWifi](dev)
 
-proc scan*(wifidev: ptr NMDeviceWifi): Result[void, ptr ptr GError] =
-  type UserData = tuple[
-    loop: ptr GMainLoop,
-    err: ptr ptr GError,
-  ]
-
+proc scan*(wifidev: ptr NMDeviceWifi, chan: Chan) =
   proc nattouReqScanCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} = 
-    var
-      u = cast[ptr UserData](user_data)
-      success = nm_device_wifi_request_scan_finish(cast[ptr NMDeviceWifi](source_object), res, u[].err)
-    trace "scan finished ", success
-    g_main_loop_quit u[].loop
-
-  var
-    loop = g_main_loop_new(nil, false.gboolean)
-    u: UserData = (loop, nil)
+    var err: ptr ptr GError
+    cast[Chan](user_data)[].send: FinScan.init:
+      if bool nm_device_wifi_request_scan_finish(cast[ptr NMDeviceWifi](source_object), res, err):
+        trace "scan finished"
+        none(ptr ptr GError)
+      else:
+        trace "scan finished", err
+        some(err)
 
   trace "requesting scan"
   nm_device_wifi_request_scan_async(
     wifidev,
     nil, # GCancellable
     nattouReqScanCb, # GAsyncReadyCallback
-    addr u, # gpointer user_data
+    chan, # gpointer user_data
   )
-  g_main_loop_run loop
-  trace "loop finished", hasErr = not u.err.isNil
-  if not u.err.isNil:
-    return err u.err
-  return ok()
 
 iterator access_points*(wifidev: ptr NMDeviceWifi): ptr NMAccessPoint =
   for ret in gIter[NMAccessPoint](nm_device_wifi_get_access_points(wifidev)):
@@ -58,13 +47,16 @@ proc ssid*(ap: ptr NMAccessPoint): Option[string] =
   else:
     some($ssid)
 
+proc strength*(ap: ptr NMAccessPoint): int =
+  ap.nm_access_point_get_strength.int
+
 proc needPasswd*(ap: ptr NMAccessPoint): bool =
   nm_access_point_get_flags(ap) != NM_802_11_AP_FLAGS_NONE
 
 proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
   proc nattouEnableWirelessCb(source_object: ptr GObject, res: ptr GAsyncResult, u: gpointer) {.cdecl.} =
     var err: ptr ptr GError
-    cast[ptr Chan](u)[].send: FinEnableWireless.init:
+    cast[Chan](u)[].send: FinEnableWireless.init:
       if not bool nm_client_dbus_set_property_finish(cast[ptr NMClient](source_object), res, err):
         trace "nm_client_dbus_set_property_finish", err
         some err
@@ -76,7 +68,7 @@ proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
     5000, # timeout_msec
     nil, # calcellable
     nattouEnableWirelessCb, # GAsyncReadyCallback
-    addr chan
+    chan
   )
 
 proc addConnection(client: ptr NMClient, conn: ptr NMConnection): Result[ptr NMRemoteConnection, ptr ptr GError] =

@@ -4,6 +4,11 @@ import libnm
 
 adtEnum Msg:
   FinEnableWireless: Option[ptr ptr GError]
+  FinScan: Option[ptr ptr GError]
 
-type Chan* = Channel[Msg]
+type Chan* = ptr Channel[Msg]
 export Msg
+
+var chan: Channel[Msg]
+open chan
+proc newChan*(): Chan = addr chan
