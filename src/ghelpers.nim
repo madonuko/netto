@@ -17,3 +17,6 @@ proc GVariant*(s: string): ptr GVariant =
 
 proc GVariant*(s: cstring): ptr GVariant =
   g_variant_new_string s
+
+proc GVariant*(b: bool): ptr GVariant =
+  g_variant_new_boolean b.gboolean

@@ -1,19 +1,21 @@
-import std/options
+import std/[options, sugar]
 
 import chronicles
 import results
 import libnm
 
 import ./ghelpers
+import ./errhdl
+import ./chan
 
 iterator get_devices*(client: ptr NMClient): ptr NMDevice =
   for ret in gIter[NMDevice](nm_client_get_devices(client)):
     yield ret
 
-proc get_wifi_device*(client: ptr NMClient): Option[ptr NMDeviceWifi] =
+proc get_wifi_devices*(client: ptr NMClient): seq[ptr NMDeviceWifi] = collect:
   for dev in get_devices(client):
     if dev.nm_device_get_type_description == "wifi":
-      return some cast[ptr NMDeviceWifi](dev)
+      cast[ptr NMDeviceWifi](dev)
 
 proc scan*(wifidev: ptr NMDeviceWifi): Result[void, ptr ptr GError] =
   type UserData = tuple[
@@ -58,6 +60,24 @@ proc ssid*(ap: ptr NMAccessPoint): Option[string] =
 
 proc needPasswd*(ap: ptr NMAccessPoint): bool =
   nm_access_point_get_flags(ap) != NM_802_11_AP_FLAGS_NONE
+
+proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
+  proc nattouEnableWirelessCb(source_object: ptr GObject, res: ptr GAsyncResult, u: gpointer) {.cdecl.} =
+    var err: ptr ptr GError
+    cast[ptr Chan](u)[].send: FinEnableWireless.init:
+      if not bool nm_client_dbus_set_property_finish(cast[ptr NMClient](source_object), res, err):
+        trace "nm_client_dbus_set_property_finish", err
+        some err
+      else:
+        trace "nm_client_dbus_set_property_finish"
+        none(ptr ptr GError)
+
+  client.nm_client_dbus_set_property(NM_DBUS_PATH, NM_DBUS_INTERFACE, "WirelessEnabled".cstring, GVariant(state),
+    5000, # timeout_msec
+    nil, # calcellable
+    nattouEnableWirelessCb, # GAsyncReadyCallback
+    addr chan
+  )
 
 proc addConnection(client: ptr NMClient, conn: ptr NMConnection): Result[ptr NMRemoteConnection, ptr ptr GError] =
   type UserData = tuple[
