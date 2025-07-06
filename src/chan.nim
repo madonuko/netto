@@ -5,6 +5,7 @@ import libnm
 adtEnum Msg:
   FinEnableWireless: Option[ptr ptr GError]
   FinScan: Option[ptr ptr GError]
+  Disconnect
 
 type Chan* = ptr Channel[Msg]
 export Msg

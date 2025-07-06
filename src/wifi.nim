@@ -150,3 +150,6 @@ proc connectAP*(client: ptr NMClient, ap: ptr NMAccessPoint, password = "", user
 
   # activate
   client.addConnection conn
+
+proc disconnect(dev: ptr NMDeviceWifi) =
+  nm_device_disconnect_async(cast[ptr NMDevice](dev), nil, nil, nil)

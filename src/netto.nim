@@ -20,7 +20,7 @@
 import chronicles
 import results
 import libnm
-import ./[wifi, errhdl, chan]
+import ./[wifi, errhdl, chan, ghelpers]
 import ./ui/ap
 import owlkettle, owlkettle/he
 import fungus
@@ -34,6 +34,7 @@ viewable App:
   wifi_devices: seq[ptr NMDeviceWifi] = @[]
   selected_wifidev: int = 0
   aps: seq[ptr NMAccessPoint]
+  active_ap: ptr NMAccessPoint
 
   hooks:
     afterBuild:
@@ -55,7 +56,7 @@ viewable App:
           warn "have been scanning for more than 10s"
         return true # keep
       discard rescanner()
-      discard addGlobalTimeout(10000, rescanner)
+      discard addGlobalTimeout(2000, rescanner)
 
 method view(app: AppState): Widget = 
   while app.chan[].peek != 0:
@@ -75,15 +76,20 @@ method view(app: AppState): Widget =
       if e.isSome:
         warn "can't scan networks", err = e.get
       app.scanning = false
+    of Disconnect:
+      disconnect app.wifi_devices[app.selected_wifidev]
+  app.active_ap = nm_device_wifi_get_active_access_point app.wifi_devices[app.selected_wifidev]
   app.aps = collect:
     for ap in app.wifi_devices[app.selected_wifidev].access_points:
-      ap
+      if app.active_ap != ap:
+        ap
   app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
   result = gui:
     HeApplicationWindow:
       title = "netto"
       defaultSize = (400, 800)
 
+      # FIXME: HeViewMono inhibits UI updates entirely as there's only append method in bindings
       Box(orient=OrientY):
         HeAppBar(showRightTitleButtons = true) {.expand: false.}
 
@@ -107,14 +113,18 @@ method view(app: AppState): Widget =
               Box()
               Switch {.expand: false, vAlign: AlignCenter.}:
                 state = nm_client_wireless_get_enabled(app.client).bool
-                # FIXME: App becomes nil after this??
+                # FIXME: App becomes nil when HeViewMono
                 proc changed(state: bool) =
                   app.client.enableWireless(state, app.chan)
+
+            if not isNil app.active_ap:
+              ActiveAp(ap = app.active_ap, chan = app.chan) {.expand: false.}
+
             ScrolledWindow:
               ListBox:
                 selectionMode = SelectionNone
                 for ap in app.aps:
-                  ApRow(ap = ap) {.addRow.}
+                  ApRow(ap = ap, chan = app.chan) {.addRow.}
 
 proc main =
   let cli = nm_client_new(nil, nil)
