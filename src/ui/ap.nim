@@ -1,4 +1,3 @@
-import std/options
 import owlkettle
 import owlkettle/he
 import libnm
@@ -7,6 +6,7 @@ import ../[wifi, chan]
 viewable ApRow:
   ap: ptr NMAccessPoint
   chan: Chan
+  connecting: bool = false
 export ApRow
 method view*(row: ApRowState): Widget = gui:
   ListBoxRow:
@@ -27,8 +27,19 @@ method view*(row: ApRowState): Widget = gui:
         text = "meow!!!"
         style = [StyleClass("bold-label")]
 
+      Box()
+
       HeButton {.expand: false, hAlign: AlignEnd, vAlign: AlignCenter.}:
-        icon = "network-connect-symbolic"
+        if row.connecting:
+          icon = "network-wired-acquiring-symbolic"
+          sensitive = false
+        else:
+          icon = "pan-end-symbolic"
+        is_iconic = true
+
+        proc clicked() =
+          row.connecting = true
+          row.chan[].send Connect.init row.ap
 
 
 viewable ActiveAp:
@@ -51,14 +62,14 @@ method view*(row: ActiveApState): Widget = gui:
 
     HeButton:
       is_iconic = true
-
       if row.disconnecting:
-        sensitive = false
         icon = "network-wired-acquiring-symbolic"
+        sensitive = false
       else:
-        icon = "network-disconnect-symbolic"
+        icon = "network-wired-disconnected-symbolic"
+        style = [StyleClass("error")]
         
 
       proc clicked() =
-        row.chan[].send Msg Disconnect
         row.disconnecting = true
+        row.chan[].send Msg Disconnect.init

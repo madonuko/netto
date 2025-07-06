@@ -1,7 +1,6 @@
 import std/[options, sugar]
 
 import chronicles
-import results
 import libnm
 
 import ./ghelpers
@@ -71,40 +70,30 @@ proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
     chan
   )
 
-proc addConnection(client: ptr NMClient, conn: ptr NMConnection): Result[ptr NMRemoteConnection, ptr ptr GError] =
-  type UserData = tuple[
-    loop: ptr GMainLoop,
-    err: ptr ptr GError,
-    conn: ptr NMRemoteConnection
-  ]
-
+proc addConnection(client: ptr NMClient, conn: ptr NMConnection, chan: Chan) =
   proc nattouAddConnCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} =
-    var u = cast[ptr UserData](user_data)
-    u[].conn = nm_client_add_connection_finish(cast[ptr NMClient](source_object), res, u[].err)
+    var
+      chan = cast[Chan](user_data)
+      err: ptr ptr GError
+      conn = nm_client_add_connection_finish(cast[ptr NMClient](source_object), res, err)
     trace "added connection"
-    g_main_loop_quit u[].loop
-
-  var
-    loop = g_main_loop_new(nil, false.gboolean)
-    u: UserData = (loop, nil, nil)
-
+    chan[].send: FinConnect.init:
+      if conn.isNil:
+        some(err)
+      else:
+        none(ptr ptr GError)
   trace "adding conn"
   client.nm_client_add_connection_async(
     conn,
     true.gboolean, # gboolean save_to_disk
     nil, # GCancellable *cancellable
     nattouAddConnCb, # GAsyncReadyCallback callback
-    addr u, # gpointer user_data
+    addr chan, # gpointer user_data
   )
-  g_main_loop_run loop
-  trace "loop finished", hasErr = not u.err.isNil
-  if not u.err.isNil:
-    return err u.err
-  ok(u.conn)
 
 # asked deepseek and somehow they're giving me methods that actually exist
 # TODO: check all paths somehow?
-proc connectAP*(client: ptr NMClient, ap: ptr NMAccessPoint, password = "", username = ""): Result[ptr NMRemoteConnection, ptr ptr GError] =
+proc connect*(client: ptr NMClient, ap: ptr NMAccessPoint, chan: Chan, password = "", username = "") =
   var
     conn = nm_simple_connection_new()
     wifi_setting = nm_setting_wireless_new()
@@ -149,7 +138,7 @@ proc connectAP*(client: ptr NMClient, ap: ptr NMAccessPoint, password = "", user
   conn.nm_connection_add_setting ip4_setting
 
   # activate
-  client.addConnection conn
+  client.addConnection conn, chan
 
-proc disconnect(dev: ptr NMDeviceWifi) =
+proc disconnect*(dev: ptr NMDeviceWifi) =
   nm_device_disconnect_async(cast[ptr NMDevice](dev), nil, nil, nil)

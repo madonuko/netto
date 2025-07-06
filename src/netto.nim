@@ -18,7 +18,6 @@
 ]#
 
 import chronicles
-import results
 import libnm
 import ./[wifi, errhdl, chan, ghelpers]
 import ./ui/ap
@@ -58,26 +57,35 @@ viewable App:
       discard rescanner()
       discard addGlobalTimeout(2000, rescanner)
 
+proc handleErr(app: AppState, e: Option[ptr ptr GError], msg: cstring) =
+  if e.isNone: return
+  warn "displaying MessageDialog"
+  discard app.open: gui:
+    MessageDialog:
+      message = &"{msg}: {e.get}"
+      DialogButton {.addButton.}:
+        text = "Ok"
+        res = DialogAccept
+
 method view(app: AppState): Widget = 
   while app.chan[].peek != 0:
     let msg = app.chan[].recv
     debug "app.chan.recv", msg
     match msg:
-    of FinEnableWireless as e:
-      if e.isSome:
-        warn "displaying MessageDialog"
-        discard app.open: gui:
-          MessageDialog:
-            message = &"Error: {e.get}"
-            DialogButton {.addButton.}:
-              text = "Ok"
-              res = DialogAccept
+    of FinEnableWireless as e: app.handleErr e, "Failed to set wireless to enabled"
     of FinScan as e:
       if e.isSome:
         warn "can't scan networks", err = e.get
       app.scanning = false
+    of Connect as ap:
+      if ap.needPasswd:
+        # TODO: obtain username/passwd
+        discard
+      else:
+        app.client.connect ap, app.chan
     of Disconnect:
       disconnect app.wifi_devices[app.selected_wifidev]
+    of FinConnect as e: app.handleErr e, "Failed to connect to access point"
   app.active_ap = nm_device_wifi_get_active_access_point app.wifi_devices[app.selected_wifidev]
   app.aps = collect:
     for ap in app.wifi_devices[app.selected_wifidev].access_points:
