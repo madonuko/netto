@@ -9,7 +9,7 @@
     "fungus": {
       "dir": "$deps/fungus",
       "url": "https://github.com/beef331/fungus",
-      "commit": "51d218c6b582cb06d331a95ce0ba475d107c64a2",
+      "commit": "6f2fa4947b9025cfed7d4cf4da7cf639778155e3",
       "version": ""
     },
     "sweet": {
@@ -110,7 +110,7 @@
       "requires \"chronicles >= 0.11.0\"",
       "requires \"sweet >= 0.1.3\"",
       "requires \"https://github.com/madonuko/owlkettle#73bf54a\"",
-      "requires \"fungus >= 0.1.18\"",
+      "requires \"fungus >= 0.1.19\"",
       ""
     ]
   },

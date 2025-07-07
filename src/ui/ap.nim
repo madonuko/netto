@@ -4,6 +4,65 @@ import owlkettle/he
 import libnm
 import ../[wifi, chan]
 
+
+viewable Property:
+  name: string
+  child: Widget
+method view(property: PropertyState): Widget =
+  result = gui:
+    Box:
+      orient = OrientX
+      spacing = 6
+      
+      Label:
+        text = property.name
+        xAlign = 0
+      
+      insert(property.child) {.expand: false.}
+proc add(property: Property, child: Widget) =
+  property.hasChild = true
+  property.valChild = child
+
+
+viewable CredDialog:
+  needUser: bool
+  username: string = ""
+  password: string = ""
+export CredDialog
+method view*(dialog: CredDialogState): Widget = gui:
+  Dialog:
+    title = "Credentials"
+    defaultSize = (320, 0)
+
+    DialogButton {.addButton.}:
+      text = "Connect"
+      style = [ButtonSuggested]
+      res = DialogAccept
+    DialogButton {.addButton.}:
+      text = "Cancel"
+      res = DialogCancel
+
+    Box:
+      orient = OrientY
+      spacing = 6
+      margin = 12
+      
+      Property:
+        name = "Username"
+        Entry:
+          text = dialog.username
+          proc changed(name: string) =
+            dialog.username = name
+      
+      Property:
+        name = "Password"
+        Entry:
+          text = dialog.password
+          visibility = false
+          proc changed(password: string) =
+            dialog.password = password
+
+
 viewable ApRow:
   ap: ptr NMAccessPoint
   chan: Chan
@@ -47,8 +106,16 @@ method view*(row: ApRowState): Widget = gui:
         is_iconic = true
 
         proc clicked() =
+          if row.ap.needPasswd:
+            let (res, state) = row.open(gui(CredDialog()))
+            if res.kind == DialogAccept:
+              row.connecting = true
+              let state = CredDialogState(state)
+              let creds = (state.username, state.password)
+              row.chan[].send Connect.init(row.ap, some(creds))
+            return
           row.connecting = true
-          row.chan[].send Connect.init row.ap
+          row.chan[].send Connect.init(row.ap, none((string, string)))
 
 
 viewable ActiveAp:
@@ -75,7 +142,7 @@ method view*(row: ActiveApState): Widget = gui:
         sensitive = false
       else:
         icon = "network-wired-disconnected-symbolic"
-        style = [StyleClass("error")]
+        style = [StyleClass("disconnect-btn")]
         
 
       proc clicked() =

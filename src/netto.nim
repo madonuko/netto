@@ -77,10 +77,10 @@ method view(app: AppState): Widget =
       if e.isSome:
         warn "can't scan networks", err = e.get
       app.scanning = false
-    of Connect as ap:
-      if ap.needPasswd:
-        # TODO: obtain username/passwd
-        discard
+    of Connect as (ap, cred):
+      if cred.isSome:
+        let (username, password) = cred.get
+        app.client.connect ap, app.chan, username, password
       else:
         app.client.connect ap, app.chan
     of Disconnect:
@@ -146,6 +146,9 @@ proc main =
       }
       .fake-button {
         background-color: inherit;
+      }
+      .disconnect-btn {
+        background: rgba(255, 0, 0, 0.2);
       }
     """)
   ])
