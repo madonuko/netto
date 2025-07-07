@@ -136,18 +136,16 @@ method view(app: AppState): Widget =
 
 proc main =
   let cli = nm_client_new(nil, nil)
-  echo "netto"
-  echo "nm client " & $cli.nm_client_get_version()
-  # echo $nm_device_wifi_get_hw_address(wifidev)
-  # wifidev.scan[]
-  # for ap in wifidev.access_points:
-  #   echo ap.ssid.get("<unknown ssid>").alignLeft(32) & &" {ap.needPasswd}"
+  info "netto", nm_client_ver = cli.nm_client_get_version()
 
   he.brew(gui(App(client = cli, wifi_devices = get_wifi_devices(cli))), stylesheets=[
     newStylesheet("""
       .bold-label {
         font-weight: bold;
         filter: brightness(150%);
+      }
+      .fake-button {
+        background-color: inherit;
       }
     """)
   ])

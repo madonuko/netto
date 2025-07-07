@@ -2,6 +2,7 @@ import std/[options, sugar]
 
 import chronicles
 import libnm
+import sweet
 
 import ./ghelpers
 import ./errhdl
@@ -110,7 +111,7 @@ proc connect*(client: ptr NMClient, ap: ptr NMAccessPoint, chan: Chan, password 
     let sec_setting = nm_setting_wireless_security_new()
     
     # WPA2-Personal (PSK)
-    if rsnFlags == NM_802_11_AP_SEC_KEY_MGMT_PSK:
+    if (rsnFlags.int & NM_802_11_AP_SEC_KEY_MGMT_PSK.int) != 0:
       sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("wpa-psk"))
       sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_PSK, GVariant(password))
     
@@ -121,7 +122,7 @@ proc connect*(client: ptr NMClient, ap: ptr NMAccessPoint, chan: Chan, password 
       sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_AUTH_ALG, GVariant("open"))
     
     # Enterprise (WPA-EAP)
-    elif rsnFlags == NM_802_11_AP_SEC_KEY_MGMT_802_1X:
+    elif (rsnFlags.int & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0:
       sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("wpa-eap"))
       let eap_setting = nm_setting_802_1x_new()
       eap_setting.nm_setting_option_set(NM_SETTING_802_1X_EAP, GVariant("peap"))

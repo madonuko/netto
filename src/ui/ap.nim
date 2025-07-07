@@ -1,3 +1,4 @@
+import std/options
 import owlkettle
 import owlkettle/he
 import libnm
@@ -14,7 +15,7 @@ method view*(row: ApRowState): Widget = gui:
       margin = Margin(top:6, bottom:6, left:12, right:12)
       spacing = 16
 
-      HeButton {.expand: false, hAlign: AlignStart, vAlign: AlignCenter.}:
+      HeButton {.expand: false, vAlign: AlignCenter.}:
         is_iconic = true
         icon = case row.ap.strength
           of 81..100: "network-wireless-signal-excellent-symbolic"
@@ -22,14 +23,22 @@ method view*(row: ApRowState): Widget = gui:
           of 31..55: "network-wireless-signal-ok-symbolic"
           else: "network-wireless-signal-weak-symbolic"
 
-      Label {.expand: false, hAlign: AlignStart, vAlign: AlignCenter.}:
-        # text = row.ap.ssid.get("<unknown ssid>") 
-        text = "meow!!!"
-        style = [StyleClass("bold-label")]
+      ScrolledWindow {.expand: true, vAlign: AlignCenter.}:
+        propagateNaturalHeight = true
+        Label:
+          text = row.ap.ssid.get("<unknown ssid>") 
+          # text = "meow!!!"
+          style = [StyleClass("bold-label")]
+          xAlign = 0
 
-      Box()
+      if row.ap.needPasswd:
+        Button {.expand: false, vAlign: AlignCenter.}:
+          sensitive = false
+          style = [StyleClass("fake-button")]
+          icon = "network-wireless-encrypted-symbolic"
+          tooltip = "encrypted"
 
-      HeButton {.expand: false, hAlign: AlignEnd, vAlign: AlignCenter.}:
+      HeButton {.expand: false, vAlign: AlignCenter.}:
         if row.connecting:
           icon = "network-wired-acquiring-symbolic"
           sensitive = false
@@ -49,9 +58,8 @@ viewable ActiveAp:
 export ActiveAp
 method view*(row: ActiveApState): Widget = gui:
   HeMiniContentBlock:
-    # title = row.ap.ssid.get("<unknown ssid>")
-    title = "MEOW"
-    # style = [StyleClass("b")]
+    title = row.ap.ssid.get("<unknown ssid>")
+    # title = "MEOW"
     subtitle = "active connection"
     cardType = HeCardTypeElevated
     icon = case row.ap.strength
