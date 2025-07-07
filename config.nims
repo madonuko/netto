@@ -1,4 +1,3 @@
---maxLoopIterationsVM:100000000
 # or textblocks
 --define:"chronicles_sinks=textlines[stderr]"
 when not defined(release):
