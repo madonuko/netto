@@ -65,6 +65,7 @@ method view*(dialog: CredDialogState): Widget = gui:
 
 
 viewable ApRow:
+  client: ptr NMClient
   ap: ptr NMAccessPoint
   chan: Chan
   connecting: bool = false
@@ -107,16 +108,19 @@ method view*(row: ApRowState): Widget = gui:
         is_iconic = true
 
         proc clicked() =
+          let conn = row.client.saved_conn row.ap
+          if not conn.isNil:
+            row.connecting = true
+            row.client.addConnection conn, row.chan
           if row.ap.needPasswd:
-            let (res, state) = row.open(gui(CredDialog(needUser = row.ap.needUsername)))
+            let (res, state) = row.app.open(gui(CredDialog(needUser = row.ap.needUsername)))
             if res.kind == DialogAccept:
+              let state = CredDialogState state
               row.connecting = true
-              let state = CredDialogState(state)
-              let creds = (state.username, state.password)
-              row.chan[].send Connect.init(row.ap, some(creds))
+              row.client.connect row.ap, row.chan, state.password, state.username
             return
           row.connecting = true
-          row.chan[].send Connect.init(row.ap, none((string, string)))
+          row.client.connect row.ap, row.chan
 
 
 viewable ActiveAp:

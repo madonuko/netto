@@ -5,7 +5,7 @@ import libnm
 adtEnum Msg:
   FinEnableWireless: Option[ptr ptr GError]
   FinScan: Option[ptr ptr GError]
-  Connect: tuple[ap: ptr NMAccessPoint, cred: Option[(string, string)]]
+  # Connect: tuple[ap: ptr NMAccessPoint, cred: Option[(string, string)]]
   Disconnect
   FinConnect: Option[ptr ptr GError]
 

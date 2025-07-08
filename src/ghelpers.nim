@@ -1,5 +1,6 @@
 import libnm
 import sweet
+import chronicles
 
 iterator gIter*[R](gpa: ptr GPtrArray): ptr R =
   for i in 0..gpa[].len.int-1:
@@ -7,6 +8,9 @@ iterator gIter*[R](gpa: ptr GPtrArray): ptr R =
       yield cast[ptr ptr R](gpa[].pdata + i)[]
 
 proc `$`*(gbytes: ptr GBytes): string =
+  if gbytes.isNil:
+    warn "nullptr gbytes"
+    return ""
   var
     size: gsize
     p = g_bytes_get_data(gbytes, addr size)

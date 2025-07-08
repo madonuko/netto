@@ -12,6 +12,10 @@ iterator get_devices*(client: ptr NMClient): ptr NMDevice =
   for ret in gIter[NMDevice](nm_client_get_devices(client)):
     yield ret
 
+iterator get_connections*(client: ptr NMClient): ptr NMRemoteConnection =
+  for ret in gIter[NMRemoteConnection](nm_client_get_connections(client)):
+    yield ret
+
 proc get_wifi_devices*(client: ptr NMClient): seq[ptr NMDeviceWifi] = collect:
   for dev in get_devices(client):
     if dev.nm_device_get_type_description == "wifi":
@@ -86,7 +90,7 @@ proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
     chan
   )
 
-proc addConnection(client: ptr NMClient, conn: ptr NMConnection, chan: Chan) =
+proc addConnection*(client: ptr NMClient, conn: ptr NMConnection, chan: Chan) =
   proc nattouAddConnCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} =
     var
       chan = cast[Chan](user_data)
@@ -94,7 +98,7 @@ proc addConnection(client: ptr NMClient, conn: ptr NMConnection, chan: Chan) =
       conn = nm_client_add_connection_finish(cast[ptr NMClient](source_object), res, err)
     trace "added connection"
     if conn.isNil && err.isNil:
-      error "nm_client_add_connection_finish() gave nil conn and nil err. This is a bug from libnm."
+      error "nm_client_add_connection_finish() gave nil conn and nil err."
       return
     chan[].send: FinConnect.init:
       if conn.isNil:
@@ -161,3 +165,19 @@ proc connect*(client: ptr NMClient, ap: ptr NMAccessPoint, chan: Chan, password 
 
 proc disconnect*(dev: ptr NMDeviceWifi) =
   nm_device_disconnect_async(cast[ptr NMDevice](dev), nil, nil, nil)
+
+let gTypeNMSettingWireless = g_type_from_name("NMSettingWireless")
+
+proc saved_conn*(client: ptr NMClient, ssid: ptr GBytes): ptr NMConnection =
+  for conn in client.get_connections:
+    if conn.isNil:
+      error "nil conn from iter"
+      continue
+    let conn = cast[ptr NMConnection](conn)
+    let sett = cast[ptr NMSettingWireless](conn.nm_connection_get_setting gTypeNMSettingWireless)
+    if not sett.isNil and bool sett.nm_setting_wireless_get_ssid.g_bytes_equal ssid:
+      return conn
+  return nil
+
+proc saved_conn*(client: ptr NMClient, ap: ptr NMAccessPoint): ptr NMConnection =
+  client.saved_conn ap.nm_access_point_get_ssid

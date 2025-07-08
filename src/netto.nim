@@ -19,7 +19,7 @@
 
 import chronicles
 import libnm
-import ./[wifi, errhdl, chan, ghelpers]
+import ./[wifi, errhdl, chan]
 import ./ui/ap
 import owlkettle, owlkettle/he
 import fungus
@@ -77,12 +77,12 @@ method view(app: AppState): Widget =
       if e.isSome:
         warn "can't scan networks", err = e.get
       app.scanning = false
-    of Connect as (ap, cred):
-      if cred.isSome:
-        let (username, password) = cred.get
-        app.client.connect ap, app.chan, password, username
-      else:
-        app.client.connect ap, app.chan
+    # of Connect as (ap, cred):
+    #   if cred.isSome:
+    #     let (username, password) = cred.get
+    #     app.client.connect ap, app.chan, password, username
+    #   else:
+    #     app.client.connect ap, app.chan
     of Disconnect:
       disconnect app.wifi_devices[app.selected_wifidev]
     of FinConnect as e: app.handleErr e, "Failed to connect to access point"
@@ -132,7 +132,7 @@ method view(app: AppState): Widget =
               ListBox:
                 selectionMode = SelectionNone
                 for ap in app.aps:
-                  ApRow(ap = ap, chan = app.chan) {.addRow.}
+                  ApRow(client = app.client, ap = ap, chan = app.chan) {.addRow.}
 
 proc main =
   let cli = nm_client_new(nil, nil)
