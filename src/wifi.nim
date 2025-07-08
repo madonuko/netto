@@ -53,6 +53,21 @@ proc strength*(ap: ptr NMAccessPoint): int =
 proc needPasswd*(ap: ptr NMAccessPoint): bool =
   nm_access_point_get_flags(ap) != NM_802_11_AP_FLAGS_NONE
 
+proc needUsername*(ap: ptr NMAccessPoint): bool =
+  # Check if AP has security enabled (not open)
+  if (ap.nm_access_point_get_flags.int & NM_802_11_AP_FLAGS_PRIVACY.int) == 0:
+    return false
+
+  # Check WPA/RSN flags for enterprise
+  let wpaFlags = ap.nm_access_point_get_wpa_flags().int
+  let rsnFlags = ap.nm_access_point_get_rsn_flags().int
+  
+  if (wpaFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0 or
+     (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0:
+    return true
+  
+  return false
+
 proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
   proc nattouEnableWirelessCb(source_object: ptr GObject, res: ptr GAsyncResult, u: gpointer) {.cdecl.} =
     var err: ptr ptr GError
@@ -78,6 +93,9 @@ proc addConnection(client: ptr NMClient, conn: ptr NMConnection, chan: Chan) =
       err: ptr ptr GError
       conn = nm_client_add_connection_finish(cast[ptr NMClient](source_object), res, err)
     trace "added connection"
+    if conn.isNil && err.isNil:
+      error "nm_client_add_connection_finish() gave nil conn and nil err. This is a bug from libnm."
+      return
     chan[].send: FinConnect.init:
       if conn.isNil:
         some(err)

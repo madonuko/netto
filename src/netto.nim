@@ -80,7 +80,7 @@ method view(app: AppState): Widget =
     of Connect as (ap, cred):
       if cred.isSome:
         let (username, password) = cred.get
-        app.client.connect ap, app.chan, username, password
+        app.client.connect ap, app.chan, password, username
       else:
         app.client.connect ap, app.chan
     of Disconnect:

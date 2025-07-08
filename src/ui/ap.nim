@@ -47,12 +47,13 @@ method view*(dialog: CredDialogState): Widget = gui:
       spacing = 6
       margin = 12
       
-      Property:
-        name = "Username"
-        Entry:
-          text = dialog.username
-          proc changed(name: string) =
-            dialog.username = name
+      if dialog.needUser:
+        Property:
+          name = "Username"
+          Entry:
+            text = dialog.username
+            proc changed(name: string) =
+              dialog.username = name
       
       Property:
         name = "Password"
@@ -107,7 +108,7 @@ method view*(row: ApRowState): Widget = gui:
 
         proc clicked() =
           if row.ap.needPasswd:
-            let (res, state) = row.open(gui(CredDialog()))
+            let (res, state) = row.open(gui(CredDialog(needUser = row.ap.needUsername)))
             if res.kind == DialogAccept:
               row.connecting = true
               let state = CredDialogState(state)
