@@ -25,7 +25,7 @@ import owlkettle, owlkettle/he
 import fungus
 import sweet
 
-import std/[strutils, options, strformat, sugar, algorithm]
+import std/[strutils, options, strformat, sugar, algorithm, sets]
 
 viewable App:
   chan: Chan = newChan()
@@ -53,7 +53,7 @@ viewable App:
           state.wifi_devices[state.selected_wifidev].scan state.chan
           nm_client_reload_connections_async(state.client, nil, nil, nil)
         else:
-          warn "have been scanning for more than 10s"
+          warn "still scanning…?"
         return true # keep
       discard rescanner()
       discard addGlobalTimeout(2000, rescanner)
@@ -137,9 +137,19 @@ method view(app: AppState): Widget =
 
             ScrolledWindow:
               ListBox:
-                selectionMode = SelectionNone
+                selectionMode = SelectionSingle
                 for ap in app.aps:
                   ApRow(client = app.client, ap = ap, chan = app.chan) {.addRow.}
+
+                proc select(rows: HashSet[int]) =
+                  info "select", rows
+                  if !rows.len: return
+                  for i in rows.items:
+                    let ssid = app.aps[i].ssid
+                    if ssid.isNone:
+                      warn "nil ssid", i
+                      return
+                    app.client.connect ssid.get, app.chan
 
 proc main =
   let cli = nm_client_new(nil, nil)
@@ -152,6 +162,7 @@ proc main =
         filter: brightness(150%);
       }
       .fake-button {
+        color: inherit;
         background-color: inherit;
       }
       .disconnect-btn {
