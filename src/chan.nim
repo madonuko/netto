@@ -7,7 +7,7 @@ adtEnum Msg:
   FinScan: Option[ptr ptr GError]
   # Connect: tuple[ap: ptr NMAccessPoint, cred: Option[(string, string)]]
   Disconnect
-  FinConnect: Option[ptr ptr GError]
+  FinConnect: Option[(int, string)]
 
 type Chan* = ptr Channel[Msg]
 export Msg

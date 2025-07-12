@@ -1,4 +1,5 @@
-import std/[options, sugar]
+import std/[options, sugar, osproc, streams, os]
+from owlkettle import addGlobalTimeout
 
 import chronicles
 import libnm
@@ -65,12 +66,9 @@ proc needUsername*(ap: ptr NMAccessPoint): bool =
   # Check WPA/RSN flags for enterprise
   let wpaFlags = ap.nm_access_point_get_wpa_flags().int
   let rsnFlags = ap.nm_access_point_get_rsn_flags().int
-  
-  if (wpaFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0 or
-     (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0:
-    return true
-  
-  return false
+
+  (wpaFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0 or
+    (rsnFlags & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0
 
 proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
   proc nattouEnableWirelessCb(source_object: ptr GObject, res: ptr GAsyncResult, u: gpointer) {.cdecl.} =
@@ -90,78 +88,26 @@ proc enableWireless*(client: ptr NMClient, state: bool, chan: Chan) =
     chan
   )
 
-proc addConnection*(client: ptr NMClient, conn: ptr NMConnection, chan: Chan) =
-  proc nattouAddConnCb(source_object: ptr GObject, res: ptr GAsyncResult, user_data: gpointer) {.cdecl.} =
-    var
-      chan = cast[Chan](user_data)
-      err: ptr ptr GError
-      conn = nm_client_add_connection_finish(cast[ptr NMClient](source_object), res, err)
-    trace "added connection"
-    if conn.isNil && err.isNil:
-      error "nm_client_add_connection_finish() gave nil conn and nil err."
-      return
+proc connect*(client: ptr NMClient, ssid: string, chan: Chan, password = "", username = "") =
+  info "connecting", ssid
+  var args = @["dev", "wifi", "connect", ssid]
+  if !!username.len:
+    debug "username", username
+    args.add ["username", username]
+  if !!password.len:
+    debug "password"
+    args.add ["password", password]
+  let p = startProcess(findExe("nmcli"), args = args)
+  proc waitForProc(): bool =
+    if p.running: return true
+    defer: close p
+    let rc = p.peekExitCode
+    assert rc != -1
     chan[].send: FinConnect.init:
-      if conn.isNil:
-        some(err)
-      else:
-        none(ptr ptr GError)
-  trace "adding conn"
-  client.nm_client_add_connection_async(
-    conn,
-    true.gboolean, # gboolean save_to_disk
-    nil, # GCancellable *cancellable
-    nattouAddConnCb, # GAsyncReadyCallback callback
-    addr chan, # gpointer user_data
-  )
-
-# asked deepseek and somehow they're giving me methods that actually exist
-# TODO: check all paths somehow?
-proc connect*(client: ptr NMClient, ap: ptr NMAccessPoint, chan: Chan, password = "", username = "") =
-  var
-    conn = nm_simple_connection_new()
-    wifi_setting = nm_setting_wireless_new()
-  
-  wifi_setting.nm_setting_option_set(NM_SETTING_WIRELESS_BSSID, GVariant(nm_access_point_get_bssid(ap)))
-  conn.nm_connection_add_setting wifi_setting
-
-  # configure security
-  let
-    flags = nm_access_point_get_flags ap
-    rsnFlags = nm_access_point_get_rsn_flags ap
-
-  if flags == NM_802_11_AP_FLAGS_PRIVACY:
-    let sec_setting = nm_setting_wireless_security_new()
-    
-    # WPA2-Personal (PSK)
-    if (rsnFlags.int & NM_802_11_AP_SEC_KEY_MGMT_PSK.int) != 0:
-      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("wpa-psk"))
-      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_PSK, GVariant(password))
-    
-    # WEP
-    elif ap.nm_access_point_get_wpa_flags != NM_802_11_AP_SEC_NONE or rsnFlags == NM_802_11_AP_SEC_NONE:
-      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("none"))
-      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_WEP_KEY0, GVariant(password))
-      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_AUTH_ALG, GVariant("open"))
-    
-    # Enterprise (WPA-EAP)
-    elif (rsnFlags.int & NM_802_11_AP_SEC_KEY_MGMT_802_1X.int) != 0:
-      sec_setting.nm_setting_option_set(NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, GVariant("wpa-eap"))
-      let eap_setting = nm_setting_802_1x_new()
-      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_EAP, GVariant("peap"))
-      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_IDENTITY, GVariant(username))
-      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_PASSWORD, GVariant(password))
-      eap_setting.nm_setting_option_set(NM_SETTING_802_1X_PHASE2_AUTH, GVariant("mschapv2"))
-      conn.nm_connection_add_setting eap_setting
-    
-    conn.nm_connection_add_setting sec_setting
-
-  # configure IPv4
-  let ip4_setting = nm_setting_ip4_config_new()
-  ip4_setting.nm_setting_option_set(NM_SETTING_IP_CONFIG_METHOD, GVariant("auto"))
-  conn.nm_connection_add_setting ip4_setting
-
-  # activate
-  client.addConnection conn, chan
+      if rc != 0: some((rc, p.outputStream.readAll))
+      else: none((int, string))
+    return false
+  discard addGlobalTimeout(200, waitForProc)
 
 proc disconnect*(dev: ptr NMDeviceWifi) =
   nm_device_disconnect_async(cast[ptr NMDevice](dev), nil, nil, nil)

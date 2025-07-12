@@ -3,6 +3,7 @@ import owlkettle
 import owlkettle/he
 import libnm
 import ../[wifi, chan]
+import chronicles
 
 
 viewable Property:
@@ -108,19 +109,28 @@ method view*(row: ApRowState): Widget = gui:
         is_iconic = true
 
         proc clicked() =
-          let conn = row.client.saved_conn row.ap
-          if not conn.isNil:
-            row.connecting = true
-            row.client.addConnection conn, row.chan
-          if row.ap.needPasswd:
-            let (res, state) = row.app.open(gui(CredDialog(needUser = row.ap.needUsername)))
-            if res.kind == DialogAccept:
-              let state = CredDialogState state
-              row.connecting = true
-              row.client.connect row.ap, row.chan, state.password, state.username
-            return
-          row.connecting = true
-          row.client.connect row.ap, row.chan
+          let ssid = block:
+            let ssid = row.ap.ssid
+            if ssid.isNone:
+              return
+            ssid.get
+          # let conn = row.client.saved_conn row.ap
+          # if not conn.isNil:
+          #   row.connecting = true
+          #   row.client.addConnection conn, row.chan
+          # if row.ap.needPasswd:
+          #   let (res, state) = row.app.open(gui(CredDialog(needUser = row.ap.needUsername)))
+          #   if row.unwrapInternalWidget.pointer == nil:
+          #     warn "row gone", ssid
+          #     return
+          #   if res.kind == DialogAccept:
+          #     let state = CredDialogState state
+          #     row.connecting = true
+          #     row.client.connect ssid, row.chan, state.password, state.username
+          #   return
+          # row.connecting = true
+          # HACK: let nmcli pop out the GUI automagically
+          row.client.connect ssid, row.chan
 
 
 viewable ActiveAp:
@@ -148,6 +158,7 @@ method view*(row: ActiveApState): Widget = gui:
       else:
         icon = "network-wired-disconnected-symbolic"
         style = [StyleClass("disconnect-btn")]
+        # color = HeColorsRed
         
 
       proc clicked() =

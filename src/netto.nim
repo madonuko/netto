@@ -23,6 +23,7 @@ import ./[wifi, errhdl, chan]
 import ./ui/ap
 import owlkettle, owlkettle/he
 import fungus
+import sweet
 
 import std/[strutils, options, strformat, sugar, algorithm]
 
@@ -57,15 +58,21 @@ viewable App:
       discard rescanner()
       discard addGlobalTimeout(2000, rescanner)
 
-proc handleErr(app: AppState, e: Option[ptr ptr GError], msg: cstring) =
+proc handleErr(app: AppState, e: Option[(int, string)], msg: cstring) =
   if e.isNone: return
   warn "displaying MessageDialog"
+  let (rc, inner) = e.get
   discard app.open: gui:
     MessageDialog:
-      message = &"{msg}: {e.get}"
+      message = block:
+        if !rc: &"{msg}: {inner}"
+        else: &"{msg}: exit code {rc}: {inner}"
       DialogButton {.addButton.}:
         text = "Ok"
         res = DialogAccept
+
+proc handleErr(app: AppState, e: Option[ptr ptr GError], msg: cstring) =
+  app.handleErr e.map(e => (0, $e)), msg
 
 method view(app: AppState): Widget = 
   while app.chan[].peek != 0:
