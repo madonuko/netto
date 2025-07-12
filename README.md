@@ -1,6 +1,21 @@
 # netto
 
-`netto` is the new solution for setting up a new network.
+<!-- prettierd formats it like this for some reason -->
+
+<ruby>ネット<rt class="annotation">`netto`</rt></ruby> (codename 🫘<ruby xml:lang="ja">
+<rbc>
+<rb>納</rb>
+<rb>豆</rb>
+</rbc>
+<rtc class="reading">
+<rt rbspan="4" xml:lang="ja">なっとう</rt>
+</rtc>
+<rtc class="annotation">
+<rt rbspan="4" xml:lang="en">nattou</rt>
+</rtc>
+</ruby>) is the new solution for setting up a new network.
+
+Written proudly in [libhelium](https://developer.fyralabs.com/helium/hig) and [Nim](https://nim-lang.org/), using `libnm`.
 
 # 📃 License
 
