@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=netto
+Comment=📡 GUI Network Applet
+Exec=/usr/bin/netto
+Icon=netto
+Terminal=false
+StartupNotify=false
+Categories=Network;Utility;
