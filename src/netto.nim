@@ -55,8 +55,10 @@ viewable App:
         else:
           warn "still scanning…?"
         return true # keep
-      discard rescanner()
-      discard addGlobalTimeout(2000, rescanner)
+
+      if !!state.wifi_devices.len:
+        discard rescanner()
+        discard addGlobalTimeout(2000, rescanner)
 
 proc handleErr(app: AppState, e: Option[(int, string)], msg: cstring) =
   if e.isNone: return
@@ -93,12 +95,13 @@ method view(app: AppState): Widget =
     of Disconnect:
       disconnect app.wifi_devices[app.selected_wifidev]
     of FinConnect as e: app.handleErr e, "Failed to connect to access point"
-  app.active_ap = nm_device_wifi_get_active_access_point app.wifi_devices[app.selected_wifidev]
-  app.aps = collect:
-    for ap in app.wifi_devices[app.selected_wifidev].access_points:
-      if app.active_ap != ap:
-        ap
-  app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
+  if !!app.wifi_devices.len:
+    app.active_ap = nm_device_wifi_get_active_access_point app.wifi_devices[app.selected_wifidev]
+    app.aps = collect:
+      for ap in app.wifi_devices[app.selected_wifidev].access_points:
+        if app.active_ap != ap:
+          ap
+    app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
   result = gui:
     HeApplicationWindow:
       title = "netto"
