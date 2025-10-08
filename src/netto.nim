@@ -102,6 +102,15 @@ method view(app: AppState): Widget =
         if app.active_ap != ap:
           ap
     app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
+    if !!app.aps.len:
+      app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
+      var new_aps = @[app.aps[0]]
+      var prevs = @[app.aps[0].ssid]
+      for ap in app.aps:
+        if ap.ssid notin prevs:
+          prevs.add ap.ssid
+          new_aps.add ap
+      app.aps = new_aps
   result = gui:
     HeApplicationWindow:
       title = "netto"
