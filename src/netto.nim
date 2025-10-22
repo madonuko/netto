@@ -27,6 +27,32 @@ import sweet
 
 import std/[strutils, options, strformat, sugar, algorithm, sets]
 
+viewable CustomConnectDialog:
+  ssid: string
+
+method view(dialog: CustomConnectDialogState): Widget = gui:
+  Dialog:
+    title = "Connect to Wi-Fi"
+    defaultSize = (400, 0)
+
+    DialogButton {.addButton.}:
+      text = "Connect"
+      style = [ButtonSuggested]
+      res = DialogAccept
+    DialogButton {.addButton.}:
+      text = "Cancel"
+      res = DialogCancel
+    Box:
+      orient = OrientX
+      spacing = 6
+
+      Label:
+        text = "SSID"
+      Entry:
+        text = dialog.ssid
+        proc changed(ssid: string) =
+          dialog.ssid = ssid 
+
 viewable App:
   chan: Chan = newChan()
   client: ptr NMClient
@@ -99,9 +125,8 @@ method view(app: AppState): Widget =
     app.active_ap = nm_device_wifi_get_active_access_point app.wifi_devices[app.selected_wifidev]
     app.aps = collect:
       for ap in app.wifi_devices[app.selected_wifidev].access_points:
-        if app.active_ap != ap:
+        if app.active_ap.ssid != ap.ssid:
           ap
-    app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
     if !!app.aps.len:
       app.aps.sort do (x, y: ptr NMAccessPoint) -> int: cmp(y.strength, x.strength)
       var new_aps = @[app.aps[0]]
@@ -138,6 +163,15 @@ method view(app: AppState): Widget =
                 proc select(item: int) =
                   app.selected_wifidev = item
               Box()
+              HeButton:
+                is_pill = true
+                icon = "list-add"
+
+                proc clicked() =
+                  let (res, dialog) = app.open gui CustomConnectDialog()
+                  let state = CustomConnectDialogState(dialog)
+                  if res.kind == DialogAccept and !!state.ssid:
+                    app.client.connect state.ssid, app.chan
               Switch {.expand: false, vAlign: AlignCenter.}:
                 state = nm_client_wireless_get_enabled(app.client).bool
                 # FIXME: App becomes nil when HeViewMono
