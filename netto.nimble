@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.3"
+version       = "0.1.4"
 author        = "madonuko"
 description   = "GUI Network Applet"
 license       = "GPL-3.0-or-later"
